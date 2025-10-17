@@ -1,6 +1,6 @@
-import csv
 import os
 from datetime import datetime
+from library.file_handler import FileHandler
 
 class Member:
     """
@@ -65,47 +65,33 @@ class Member:
 
     def display(self):
         """Display member details nicely."""
-        print(f"[{self.__member_id}] {self.__name} | 📧 {self.__email} | 📞 {self.__phone} | 🏢 {self.__department} | Joined: {self.__join_date}")
+        print(f"[{self.__member_id}] {self.__name} | 📧 {self.__email} | "
+              f"📞 {self.__phone} | 🏢 {self.__department} | Joined: {self.__join_date}")
 
     # ------------------------
-    # CSV File Handling
+    # CSV File Handling (via FileHandler)
     # ------------------------
-    @classmethod
-    def initialize_csv(cls):
-        """Create CSV if not exists."""
-        if not os.path.exists(cls.DATA_FILE):
-            os.makedirs(os.path.dirname(cls.DATA_FILE), exist_ok=True)
-            with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-                writer.writeheader()
-
     @classmethod
     def load_members(cls):
-        """Load all members from CSV."""
-        cls.initialize_csv()
+        """Load all members from CSV using FileHandler."""
+        data = FileHandler.read_csv(cls.DATA_FILE, cls.FIELDNAMES)
         members = []
-        with open(cls.DATA_FILE, 'r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                members.append(Member(
-                    row["member_id"],
-                    row["name"],
-                    row["email"],
-                    row["phone"],
-                    row["department"],
-                    row["join_date"]
-                ))
+        for row in data:
+            members.append(Member(
+                row["member_id"],
+                row["name"],
+                row["email"],
+                row["phone"],
+                row["department"],
+                row["join_date"]
+            ))
         return members
 
     @classmethod
     def save_members(cls, members):
-        """Save all members (list of Member objects) to CSV."""
-        cls.initialize_csv()
-        with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-            writer.writeheader()
-            for m in members:
-                writer.writerow(m.to_dict())
+        """Save all members to CSV using FileHandler."""
+        data_list = [m.to_dict() for m in members]
+        FileHandler.write_csv(cls.DATA_FILE, cls.FIELDNAMES, data_list)
 
     # ------------------------
     # Functional Methods
@@ -115,7 +101,7 @@ class Member:
         """Register a new member."""
         members = cls.load_members()
 
-        # check duplicate email
+        # Check for duplicate email
         if any(m.email == email for m in members):
             print("⚠️ Member with this email already exists!")
             return

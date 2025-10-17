@@ -1,13 +1,13 @@
-import csv
-import os
 from datetime import datetime, timedelta
 from library.book import Book
 from library.member import Member
+from library.file_handler import FileHandler
+
 
 class Transaction:
     """
     Manages borrowing and returning of books.
-    Stores all records in transactions.csv.
+    Uses FileHandler for CSV operations.
     """
 
     DATA_FILE = "data/transactions.csv"
@@ -55,7 +55,7 @@ class Transaction:
     # Utility Methods
     # ------------------------
     def to_dict(self):
-        """Convert object to dict for CSV writing."""
+        """Convert transaction object to dictionary for CSV storage."""
         return {
             "transaction_id": self.__transaction_id,
             "member_id": self.__member_id,
@@ -67,49 +67,36 @@ class Transaction:
 
     def display(self):
         """Display transaction details."""
-        print(f"[{self.__transaction_id}] Member: {self.__member_id} | Book: {self.__book_id} | "
-              f"Borrowed: {self.__borrow_date} | Returned: {self.__return_date or 'Not Returned'} | "
-              f"Status: {self.__status}")
+        print(
+            f"[{self.__transaction_id}] Member: {self.__member_id} | "
+            f"Book: {self.__book_id} | Borrowed: {self.__borrow_date} | "
+            f"Returned: {self.__return_date or 'Not Returned'} | Status: {self.__status}"
+        )
 
     # ------------------------
-    # File Handling
+    # File Handling via FileHandler
     # ------------------------
-    @classmethod
-    def initialize_csv(cls):
-        """Create CSV if not exists."""
-        if not os.path.exists(cls.DATA_FILE):
-            os.makedirs(os.path.dirname(cls.DATA_FILE), exist_ok=True)
-            with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-                writer.writeheader()
-
     @classmethod
     def load_transactions(cls):
-        """Load all transactions."""
-        cls.initialize_csv()
+        """Load all transactions from CSV using FileHandler."""
+        rows = FileHandler.load_csv(cls.DATA_FILE)
         transactions = []
-        with open(cls.DATA_FILE, 'r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                transactions.append(Transaction(
-                    row["transaction_id"],
-                    row["member_id"],
-                    row["book_id"],
-                    row["borrow_date"],
-                    row["return_date"] or None,
-                    row["status"]
-                ))
+        for row in rows:
+            transactions.append(Transaction(
+                row["transaction_id"],
+                row["member_id"],
+                row["book_id"],
+                row["borrow_date"],
+                row.get("return_date") or None,
+                row["status"]
+            ))
         return transactions
 
     @classmethod
     def save_transactions(cls, transactions):
-        """Save list of Transaction objects to CSV."""
-        cls.initialize_csv()
-        with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-            writer.writeheader()
-            for t in transactions:
-                writer.writerow(t.to_dict())
+        """Save all transactions (list of Transaction objects) using FileHandler."""
+        data = [t.to_dict() for t in transactions]
+        FileHandler.save_csv(cls.DATA_FILE, cls.FIELDNAMES, data)
 
     # ------------------------
     # Functional Methods
@@ -117,18 +104,17 @@ class Transaction:
     @classmethod
     def borrow_book(cls, member_id, book_id):
         """Borrow a book if available."""
-        # Load data
         books = Book.load_books()
         members = Member.load_members()
         transactions = cls.load_transactions()
 
-        # Check member exists
+        # Validate member
         member = next((m for m in members if m.member_id == member_id), None)
         if not member:
             print("❌ Member not found!")
             return
 
-        # Check book exists and is available
+        # Validate book
         book = next((b for b in books if b.book_id == book_id), None)
         if not book:
             print("❌ Book not found!")
@@ -137,8 +123,8 @@ class Transaction:
             print("⚠️ Book is already borrowed.")
             return
 
-        # Borrow book
-        transaction_id = f"T{len(transactions)+1:04d}"
+        # Create transaction
+        transaction_id = f"T{len(transactions) + 1:04d}"
         borrow_date = datetime.now().strftime("%Y-%m-%d")
         new_transaction = Transaction(transaction_id, member_id, book_id, borrow_date)
         transactions.append(new_transaction)
@@ -148,7 +134,7 @@ class Transaction:
         Book.save_books(books)
         cls.save_transactions(transactions)
 
-        print(f"✅ Book '{book.title}' borrowed successfully by Member '{member.name}' (Transaction ID: {transaction_id}).")
+        print(f"✅ Book '{book.title}' borrowed successfully by '{member.name}' (Transaction ID: {transaction_id}).")
 
     @classmethod
     def return_book(cls, member_id, book_id):
@@ -156,25 +142,24 @@ class Transaction:
         books = Book.load_books()
         transactions = cls.load_transactions()
 
-        # Find matching transaction
+        # Find active transaction
         transaction = next(
             (t for t in transactions if t.member_id == member_id and t.book_id == book_id and t.status == "Borrowed"),
             None
         )
         if not transaction:
-            print("⚠️ No active borrow found for this member and book.")
+            print("⚠️ No active borrow record found for this member and book.")
             return
 
-        # Update transaction
+        # Update transaction and book status
         transaction.__return_date = datetime.now().strftime("%Y-%m-%d")
         transaction.__status = "Returned"
 
-        # Update book availability
         book = next((b for b in books if b.book_id == book_id), None)
         if book:
             book.available = True
 
-        # Save data
+        # Save updates
         cls.save_transactions(transactions)
         Book.save_books(books)
         print(f"📘 Book '{book.title}' successfully returned by Member ID {member_id}.")
@@ -192,7 +177,7 @@ class Transaction:
 
     @classmethod
     def overdue_books(cls, days_limit=7):
-        """Show all overdue books (borrowed more than N days ago)."""
+        """Display overdue books (borrowed for more than N days)."""
         transactions = cls.load_transactions()
         overdue_list = []
 
@@ -205,6 +190,6 @@ class Transaction:
         if not overdue_list:
             print("✅ No overdue books.")
         else:
-            print("\n⚠️ Overdue Books (Borrowed more than 7 days ago):")
+            print(f"\n⚠️ Overdue Books (Borrowed more than {days_limit} days ago):")
             for t in overdue_list:
                 t.display()
