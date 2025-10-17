@@ -1,0 +1,2 @@
+transaction_id,member_id,book_id,borrow_date,return_date,status
+T0001,M001,B001,2025-10-17,,Borrowed
