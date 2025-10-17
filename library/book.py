@@ -1,6 +1,5 @@
-import csv
 import os
-from datetime import datetime
+from library.file_handler import FileHandler
 
 class Book:
     """
@@ -19,8 +18,8 @@ class Book:
         self.__title = title.strip().title()
         self.__author = author.strip().title()
         self.__genre = genre.strip().title()
-        self.__year = year
-        self.__available = available
+        self.__year = int(year)
+        self.__available = available if isinstance(available, bool) else str(available).lower() == "true"
 
     # ------------------------
     # Properties (Encapsulation)
@@ -60,7 +59,7 @@ class Book:
     # Instance Methods
     # ------------------------
     def to_dict(self):
-        """Convert a Book object into a dictionary (for CSV writing)."""
+        """Convert Book object to dict for CSV."""
         return {
             "book_id": self.__book_id,
             "title": self.__title,
@@ -71,56 +70,41 @@ class Book:
         }
 
     def display(self):
-        """Display the book info neatly."""
+        """Display book details."""
         status = "Available ✅" if self.__available else "Borrowed ❌"
         print(f"[{self.__book_id}] {self.__title} by {self.__author} ({self.__year}) | {self.__genre} | {status}")
 
     # ------------------------
-    # Class-Level File Operations
+    # Class-Level Operations
     # ------------------------
     @classmethod
-    def initialize_csv(cls):
-        """Create CSV file if not exists."""
-        if not os.path.exists(cls.DATA_FILE):
-            os.makedirs(os.path.dirname(cls.DATA_FILE), exist_ok=True)
-            with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-                writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-                writer.writeheader()
-
-    @classmethod
     def load_books(cls):
-        """Load all books from CSV as a list of Book objects."""
-        cls.initialize_csv()
+        """Load all books from CSV using FileHandler."""
+        data = FileHandler.read_csv(cls.DATA_FILE, cls.FIELDNAMES)
         books = []
-        with open(cls.DATA_FILE, 'r', newline='', encoding='utf-8') as file:
-            reader = csv.DictReader(file)
-            for row in reader:
-                books.append(Book(
-                    row["book_id"],
-                    row["title"],
-                    row["author"],
-                    row["genre"],
-                    int(row["year"]),
-                    row["available"].lower() == "true"
-                ))
+        for row in data:
+            books.append(Book(
+                row["book_id"],
+                row["title"],
+                row["author"],
+                row["genre"],
+                row["year"],
+                row["available"]
+            ))
         return books
 
     @classmethod
     def save_books(cls, books):
-        """Save all books (list of Book objects) to CSV."""
-        cls.initialize_csv()
-        with open(cls.DATA_FILE, 'w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=cls.FIELDNAMES)
-            writer.writeheader()
-            for book in books:
-                writer.writerow(book.to_dict())
+        """Save all books to CSV using FileHandler."""
+        data_list = [b.to_dict() for b in books]
+        FileHandler.write_csv(cls.DATA_FILE, cls.FIELDNAMES, data_list)
 
     # ------------------------
     # Functional Methods
     # ------------------------
     @classmethod
     def add_book(cls, title, author, genre, year):
-        """Add a new book to the collection."""
+        """Add a new book."""
         books = cls.load_books()
         new_id = f"B{len(books)+1:03d}"
         new_book = Book(new_id, title, author, genre, year)
