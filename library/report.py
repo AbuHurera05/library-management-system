@@ -1,7 +1,6 @@
 import csv
 import os
 from datetime import datetime
-import pandas as pd
 from library.book import Book
 from library.member import Member
 from library.transaction import Transaction
@@ -13,6 +12,7 @@ class Report:
     from library data (books, members, transactions).
     """
 
+    # ------------------------------------------------------------
     @staticmethod
     def total_summary():
         """Show overall summary of books, members, and transactions."""
@@ -38,18 +38,26 @@ class Report:
     # ------------------------------------------------------------
     @staticmethod
     def most_borrowed_books(top_n=5):
-        """Show most borrowed books using pandas."""
+        """Show most borrowed books (without pandas)."""
         Transaction.initialize_csv()
-        df = pd.read_csv(Transaction.DATA_FILE)
 
-        if df.empty:
+        borrow_counts = {}
+        with open(Transaction.DATA_FILE, "r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                book_id = row["book_id"]
+                borrow_counts[book_id] = borrow_counts.get(book_id, 0) + 1
+
+        if not borrow_counts:
             print("⚠️ No transaction data found.")
             return
 
-        book_counts = df['book_id'].value_counts().head(top_n)
+        # Sort books by borrow count (descending)
+        sorted_books = sorted(borrow_counts.items(), key=lambda x: x[1], reverse=True)[:top_n]
+
         print(f"\n🏆 TOP {top_n} MOST BORROWED BOOKS")
         print("=" * 45)
-        for book_id, count in book_counts.items():
+        for book_id, count in sorted_books:
             book = next((b for b in Book.load_books() if b.book_id == book_id), None)
             title = book.title if book else "Unknown"
             print(f"{book_id} - {title:25} | Borrowed {count} times")
@@ -109,15 +117,29 @@ class Report:
         members = Member.load_members()
         transactions = Transaction.load_transactions()
 
-        summary_data = {
-            "Total_Books": [len(books)],
-            "Total_Members": [len(members)],
-            "Total_Transactions": [len(transactions)],
-            "Borrowed_Books": [len([b for b in books if not b.available])],
-            "Returned_Books": [len([t for t in transactions if t.status == "Returned"])],
-        }
+        total_books = len(books)
+        total_members = len(members)
+        total_transactions = len(transactions)
+        borrowed_books = len([b for b in books if not b.available])
+        returned_books = len([t for t in transactions if t.status == "Returned"])
 
-        df = pd.DataFrame(summary_data)
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        df.to_csv(output_file, index=False)
+
+        with open(output_file, "w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow([
+                "Total_Books",
+                "Total_Members",
+                "Total_Transactions",
+                "Borrowed_Books",
+                "Returned_Books",
+            ])
+            writer.writerow([
+                total_books,
+                total_members,
+                total_transactions,
+                borrowed_books,
+                returned_books,
+            ])
+
         print(f"📁 Summary report exported successfully to: {output_file}")
