@@ -72,6 +72,26 @@ class Transaction:
             f"Book: {self.__book_id} | Borrowed: {self.__borrow_date} | "
             f"Returned: {self.__return_date or 'Not Returned'} | Status: {self.__status}"
         )
+    @classmethod
+    def view_member_borrowed(cls, member_id):
+        """Display all books borrowed by a specific member."""
+        from library.file_handler import FileHandler
+
+        # Load all transactions
+        transactions = FileHandler.read_csv(cls.DATA_FILE)
+
+        # Filter transactions for the given member_id
+        borrowed_books = [t for t in transactions if t.get("member_id") == member_id and t.get("return_date") == ""]
+
+        if not borrowed_books:
+            print(f"\nNo active borrowed books found for Member ID: {member_id}")
+            return
+
+        print(f"\nBooks currently borrowed by Member ID {member_id}:")
+        print("-" * 60)
+        for t in borrowed_books:
+            print(f"Book ID: {t['book_id']} | Issue Date: {t['issue_date']} | Due Date: {t['due_date']}")
+        print("-" * 60)
 
     # ------------------------
     # File Handling via FileHandler
@@ -79,7 +99,7 @@ class Transaction:
     @classmethod
     def load_transactions(cls):
         """Load all transactions from CSV using FileHandler."""
-        rows = FileHandler.load_csv(cls.DATA_FILE)
+        rows = FileHandler.read_csv(cls.DATA_FILE)
         transactions = []
         for row in rows:
             transactions.append(Transaction(
@@ -96,7 +116,7 @@ class Transaction:
     def save_transactions(cls, transactions):
         """Save all transactions (list of Transaction objects) using FileHandler."""
         data = [t.to_dict() for t in transactions]
-        FileHandler.save_csv(cls.DATA_FILE, cls.FIELDNAMES, data)
+        FileHandler.write_csv(cls.DATA_FILE, cls.FIELDNAMES, data)
 
     # ------------------------
     # Functional Methods
